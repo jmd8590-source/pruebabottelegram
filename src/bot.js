@@ -8,9 +8,20 @@
  */
 
 const TelegramBot = require("node-telegram-bot-api");
+const http = require("http");
 const config = require("../config/config");
 const handlers = require("./handlers");
 const logger = require("./logger");
+
+// ── Health-check HTTP server (platform liveness probe) ───────
+const PORT = process.env.PORT || 3000;
+const healthServer = http.createServer((req, res) => {
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ status: "ok", bot: config.BUSINESS_NAME }));
+});
+healthServer.listen(PORT, "0.0.0.0", () => {
+  logger.info(`🌐 Health-check server listening on port ${PORT}`);
+});
 
 // ── Crear instancia del bot ──────────────────────────────────
 const bot = new TelegramBot(config.BOT_TOKEN, { polling: true });
@@ -40,12 +51,14 @@ process.on("unhandledRejection", (reason) => {
 process.on("SIGINT", () => {
   logger.info("Bot detenido manualmente (SIGINT)");
   bot.stopPolling();
+  healthServer.close();
   process.exit(0);
 });
 
 process.on("SIGTERM", () => {
   logger.info("Bot detenido por el sistema (SIGTERM)");
   bot.stopPolling();
+  healthServer.close();
   process.exit(0);
 });
 
